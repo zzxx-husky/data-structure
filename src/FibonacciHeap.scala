@@ -1,99 +1,148 @@
-case class Node[T](value: T) {
-    var numSon = 0
+
+import scala.collection.mutable.PriorityQueue
+import scala.io.Source
+
+private class Node[T](v: T) {
+    def value = v
+    var index = 0
     var son = null.asInstanceOf[Node[T]]
-    var slibing = null.asInstanceOf[Node[T]]
-        
+    var slibling = null.asInstanceOf[Node[T]]
+
     def union(b: Node[T]): Node[T] = {
-        b.slibing = son
+        b.slibling = son
+        index += 1
         son = b
-        numSon += 1
         this
     }
-}
+}    
 
 class FibonacciHeap[T](implicit order: Ordering[T]) {
+
     private val heaps = new Array[Node[T]](32)
-    private var maxIdx = 1 //heap with index larger than or equal to maxIdx must be null 
-    
-    private var minNode = null.asInstanceOf[Node[T]]
-    
-    private def addNodeTo(i: Int) = {
-        if (heaps(i) == null) {
-            heaps(i) = heaps(0)
-            true
+    private var maxIdx = 0 //heap with index larger than or equal to maxIdx must be null 
+
+    private var tmpNode = null.asInstanceOf[Node[T]]
+    private var topNode = null.asInstanceOf[Node[T]]
+
+    private def addNodeTo(node: Node[T]) = {
+        if (node == null) {
+            tmpNode
         } else {
-            val ord = order.compare(heaps(i).value, heaps(0).value)
-            heaps(0) = if (ord < 0) heaps(i).union(heaps(0)) else heaps(0).union(heaps(i))
-            heaps(i) = null
-            false
+            val ord = order.compare(node.value, tmpNode.value)
+            tmpNode = if (ord < 0) node.union(tmpNode) else tmpNode.union(node)
+            null
         }
     }
 
-    def min(): Option[T] = if (minNode == null) None else Some(minNode.value)
-    
+    /**
+     * O(1)
+     */
+    def top(): T = if (topNode == null) throw new Exception("top from empty heap") else topNode.value
+
+    /**
+     * O(1)
+     */
     def add(value: T) {
-        heaps(0) = new Node(value)
-        if (minNode == null || order.compare(minNode.value, value) > 0)
-            minNode = heaps(0)
-        (1 to maxIdx).toStream.find(i => addNodeTo(i))
+        tmpNode = new Node(value)
+        if (topNode == null || order.compare(topNode.value, value) >= 0) //need equal to 0
+            topNode = tmpNode
+        (0 to maxIdx).find{
+            i => 
+                heaps(i) = addNodeTo(heaps(i))
+                heaps(i) != null
+        }
         if (heaps(maxIdx) != null) maxIdx += 1
-        heaps(0) = null
+        tmpNode = null
     }
-    
+
     /**
      * merge two fibonacci heap, the second heap will become empty after being merged.
+     * O(logN)
      */
     def merge(b: FibonacciHeap[T]) {
-        if (minNode == null || (b.minNode != null && order.compare(minNode.value, b.minNode.value) > 0))
-            minNode = b.minNode
-        b.minNode = null
-        maxIdx = math.max(maxIdx, b.maxIdx)
-        (1 to maxIdx).toStream.foreach {
-            i => 
-                b.heaps(i) = 
+        if (topNode == null || (b.topNode != null && order.compare(topNode.value, b.topNode.value) > 0))
+            topNode = b.topNode
+        maxIdx = math.min(maxIdx, b.maxIdx)
+        (0 to maxIdx).foreach {
+            i =>
+                b.heaps(i) =
                     if (heaps(i) != null && b.heaps(i) != null) {
                         val ord = order.compare(heaps(i).value, b.heaps(i).value)
                         if (ord < 0) heaps(i).union(b.heaps(i)) else b.heaps(i).union(heaps(i))
-                    } else if (heaps(i) != null) {
-                        heaps(i)
-                    } else b.heaps(i)
-                heaps(i) = heaps(0)
-                heaps(0) = b.heaps(i)
+                    } else 
+                        if (heaps(i) != null) heaps(i) else b.heaps(i)
+                heaps(i) = tmpNode
+                tmpNode = b.heaps(i)
                 b.heaps(i) = null
         }
+        (maxIdx + 1 until b.maxIdx).foreach(b.heaps(_) = null)
+        b.topNode = null
+        b.maxIdx = 0
         if (heaps(maxIdx) != null) maxIdx += 1
     }
-    
-    def removeMin(): Option[T] = {
-        if (minNode == null) None
+
+    /**
+     * O(logN)
+     */
+    def pop(): T = {
+        if (topNode == null) throw new Exception("top from empty heap")
         else {
-            val res = Some(minNode.value)
-            heaps(minNode.numSon) = null
-            while(minNode.son != null) {
-                heaps(0) = minNode.son
-                (minNode.son.numSon to maxIdx).toStream.find(i => addNodeTo(i))
-                if (heaps(maxIdx) != null) maxIdx += 1
-                minNode.son = minNode.son.slibing
+            val res = topNode.value
+            heaps(topNode.index) = null
+            var son = topNode.son
+            while (son != null) {
+                tmpNode = son
+                son = son.slibling
+                tmpNode.slibling = null
+                (tmpNode.index to maxIdx).find{
+                    i => 
+                        heaps(i) = addNodeTo(heaps(i))
+                        heaps(i) != null
+                }
             }
-            heaps(0) = null
-            minNode = (1 to maxIdx).map(heaps(_)).min(new Ordering[Node[T]] {
-                override def compare(a: Node[T], b: Node[T]) = if (a == null) 1 else if (b == null) -1 else order.compare(a.value, b.value)
-            })
+            tmpNode = null
+            topNode = null
+            if (heaps(maxIdx) != null) maxIdx += 1
+            for (i <- 0 to maxIdx) {
+                if (heaps(i) != null)
+                    topNode = if (topNode == null || order.compare(heaps(i).value, topNode.value) < 0) heaps(i) else topNode 
+            }
             res
         }
     }
-    
-    def isEmpty() = minNode == null
-    
-    def nonEmpty() = minNode != null
+
+    def isEmpty() = topNode == null
+
+    def nonEmpty() = topNode != null
 }
 
 object FibonacciHeap {
     def main(args: Array[String]) {
         val heap = new FibonacciHeap[Int]
-        val array = (1 to 100).map(_ => (math.random * 1000).toInt % 1000)
-        println(array.sorted.mkString(" "))
-        array.foreach(i => heap.add(i))
-        while(heap.nonEmpty()) print(heap.removeMin() + " ")
+        val a = (1 to 2000000).map(_ => (math.random * 1000).toInt % 1000)
+        val sortedA = a.sorted
+        a.foreach(i => heap.add(i))
+        var idx = 0
+        while (heap.nonEmpty()) {
+            val i = heap.pop()
+            assert(sortedA(idx) == i, sortedA(idx) + " " + i)
+            idx += 1
+        }
+        println("SUCC")
+
+        var st = System.currentTimeMillis()
+        a.foreach(i => heap.add(i))
+        println(System.currentTimeMillis() - st)
+        while (heap.nonEmpty)
+            heap.pop()
+        println(System.currentTimeMillis() - st)
+        
+        st = System.currentTimeMillis()
+        val Q = new PriorityQueue[Int]()
+        a.foreach(i => Q += i)
+        println(System.currentTimeMillis() - st)
+        while (Q.nonEmpty)
+            Q.dequeue()
+        println(System.currentTimeMillis() - st)
     }
 }
