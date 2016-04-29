@@ -3,8 +3,10 @@ import scala.collection.mutable.PriorityQueue
 import scala.io.Source
 import scala.collection.immutable.Range.Inclusive
 
-private class Node[T](v: T) {
-    def value = v
+import scala.collection.immutable.Range.Inclusive
+import scala.reflect.ClassTag
+
+private case class Node[T](value: T) {
     var son = null.asInstanceOf[Node[T]]
     var lastSon = null.asInstanceOf[Node[T]]
     var slibling = null.asInstanceOf[Node[T]]
@@ -22,15 +24,8 @@ private class Node[T](v: T) {
         lastSon = b
         this
     }
-
-    def show(indent: Int = 2) {
-        for (i <- 0 until indent) print(' ')
-        println(value)
-        if (son != null)
-            son.show(indent + 2)
-        if (slibling != null)
-            slibling.show(indent)
-    }
+    
+    def recursive[U](p: Node[T] => U): U = p(this)
 }
 
 class FibonacciHeap[T](implicit order: Ordering[T]) {
@@ -40,6 +35,8 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
 
     private var tmpNode = null.asInstanceOf[Node[T]]
     private var topNode = null.asInstanceOf[Node[T]]
+    
+    private var numElem = 0
 
     private def addNodeTo(node: Node[T]) = {
         if (node == null) {
@@ -68,14 +65,22 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
             heaps.update(i, addNodeTo(heaps(i)))
             i += 1
         }
+        numElem += 1
         if (heaps(maxIdx) != null) maxIdx += 1
+    }
+    
+    def clear() {
+        topNode = null
+        maxIdx = 0
+        numElem = 0
+        FibonacciHeap.seq(0)(31).foreach(heaps.update(_, null))
     }
 
     /**
      * merge two fibonacci heap, the second heap will become empty after being merged.
      * O(logN)
      */
-    def merge(b: FibonacciHeap[T]) {
+    def <=(b: FibonacciHeap[T]): FibonacciHeap[T] = {
         if (topNode == null || (b.topNode != null && order.compare(topNode.value, b.topNode.value) > 0))
             topNode = b.topNode
         if (maxIdx < b.maxIdx) {
@@ -90,14 +95,12 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
         while (i < b.maxIdx) {
             if (tmpNode == null) {
                 tmpNode = b.heaps(i)
-                b.heaps.update(i, null)
             }
             if (tmpNode != null) {
                 if (b.heaps(i) != null)
                     addNodeTo(b.heaps(i))
                 else
                     heaps.update(i, heaps(i))
-                b.heaps.update(i, null)
             }
             i += 1
         }
@@ -105,9 +108,10 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
             heaps.update(i, addNodeTo(heaps(i)))
             i += 1
         }
-        b.topNode = null
-        b.maxIdx = 0
+        numElem += b.numElem
+        b.clear()
         if (heaps(maxIdx) != null) maxIdx += 1
+        this
     }
 
     /**
@@ -149,8 +153,25 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
                     if (heaps(i) != null)
                         topNode = if (topNode == null || order.compare(heaps(i).value, topNode.value) < 0) heaps(i) else topNode
             }
+            numElem -= 1
             res
         }
+    }
+    
+    def toArray()(implicit tag: ClassTag[T]) = {
+        val res = new Array[T](numElem)
+        var idx = 0
+        def recu: Node[T] => Unit = {
+            node =>
+                res.update(idx, node.value)
+                idx += 1
+                if (node.son != null)
+                    node.son.recursive(recu)
+                if (node.slibling != null)
+                    node.slibling.recursive(recu)
+        }
+        heaps.filter(_ != null).foreach(_.recursive(recu))
+        res
     }
 
     def isEmpty() = topNode == null
@@ -160,16 +181,29 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
     /**
      * for debug
      */
-    def show() = FibonacciHeap.seq(0)(31).filter(heaps(_) != null).foreach {
-        i =>
-            println(i + ": ")
-            heaps(i).show()
+    def show() = {
+        def toShow: (Node[T], Int) => Unit = {
+            case (node, indent) =>
+                for (i <- 0 until indent) print(' ')
+                println(node.value)
+                if (node.son != null)
+                    toShow(node.son, indent + 2)
+                if (node.slibling != null)
+                    toShow(node.slibling, indent)
+        }
+        FibonacciHeap.seq(0)(31).filter(heaps(_) != null).foreach {
+            i =>
+                println(i + ": ")
+                heaps(i).recursive(toShow(_, 2))
+        }
     }
 }
 
 object FibonacciHeap {
     //to get a sequence from i to j quickly
-    private val seq = (0 until 32).map { i => (0 until 32).map(j => (i to j)) }
+    private val seq = (0 until 32).map { i => (0 until 32).map(j => (i to j)) }  
+    
+    def empty[T](implicit order: Ordering[T]) = new FibonacciHeap[T]()(order)
 
     def main(args: Array[String]) {
         val heap = new FibonacciHeap[Int]
