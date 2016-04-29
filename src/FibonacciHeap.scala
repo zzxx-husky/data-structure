@@ -22,7 +22,7 @@ private class Node[T](v: T) {
         lastSon = b
         this
     }
-    
+
     def show(indent: Int = 2) {
         for (i <- 0 until indent) print(' ')
         println(value)
@@ -35,7 +35,7 @@ private class Node[T](v: T) {
 
 class FibonacciHeap[T](implicit order: Ordering[T]) {
 
-    private val heaps = new Array[Node[T]](32)
+    private var heaps = new Array[Node[T]](32)
     private var maxIdx = 0 //heap with index larger than or equal to maxIdx must be null 
 
     private var tmpNode = null.asInstanceOf[Node[T]]
@@ -64,12 +64,9 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
         if (topNode == null || order.compare(topNode.value, value) >= 0) //need equal to 0
             topNode = tmpNode
         var i = 0
-        while (i <= maxIdx) { //while loop is faster than find
+        while (tmpNode != null) { //while loop is faster than find
             heaps.update(i, addNodeTo(heaps(i)))
-            if (tmpNode == null)
-                i += maxIdx + 1
-            else 
-                i += 1
+            i += 1
         }
         if (heaps(maxIdx) != null) maxIdx += 1
     }
@@ -81,20 +78,33 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
     def merge(b: FibonacciHeap[T]) {
         if (topNode == null || (b.topNode != null && order.compare(topNode.value, b.topNode.value) > 0))
             topNode = b.topNode
-        maxIdx = math.min(maxIdx, b.maxIdx)
-        FibonacciHeap.seq(0)(maxIdx).foreach {
-            i =>
-                b.heaps(i) =
-                    if (heaps(i) != null && b.heaps(i) != null) {
-                        val ord = order.compare(heaps(i).value, b.heaps(i).value)
-                        if (ord < 0) heaps(i).union(b.heaps(i)) else b.heaps(i).union(heaps(i))
-                    } else 
-                        if (heaps(i) != null) heaps(i) else b.heaps(i)
-                heaps(i) = tmpNode
-                tmpNode = b.heaps(i)
-                b.heaps(i) = null
+        if (maxIdx < b.maxIdx) {
+            val tmpIdx = b.maxIdx
+            b.maxIdx = maxIdx
+            maxIdx = tmpIdx
+            val tmpHeaps = b.heaps
+            b.heaps = heaps
+            heaps = tmpHeaps
         }
-        FibonacciHeap.seq(maxIdx + 1)(b.maxIdx - 1).foreach(b.heaps(_) = null)
+        var i = 0
+        while (i < b.maxIdx) {
+            if (tmpNode == null) {
+                tmpNode = b.heaps(i)
+                b.heaps.update(i, null)
+            }
+            if (tmpNode != null) {
+                if (b.heaps(i) != null)
+                    addNodeTo(b.heaps(i))
+                else
+                    heaps.update(i, heaps(i))
+                b.heaps.update(i, null)
+            }
+            i += 1
+        }
+        while (tmpNode != null) {
+            heaps.update(i, addNodeTo(heaps(i)))
+            i += 1
+        }
         b.topNode = null
         b.maxIdx = 0
         if (heaps(maxIdx) != null) maxIdx += 1
@@ -115,16 +125,16 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
                         val nxt = son.slibling
                         son.slibling = null
                         if (tmpNode != null) {
-                            addNodeTo(son)                                
+                            addNodeTo(son)
                         } else {
                             tmpNode = son
                             heaps.update(i, addNodeTo(heaps(i)))
                         }
-                        son = nxt
-                        if (son == null) {
+                        if (nxt == null) {
                             heaps.update(i + 1, null)
                             if (tmpNode == null) i += maxIdx
                         }
+                        son = nxt
                     } else {
                         heaps.update(i, addNodeTo(heaps(i)))
                         if (tmpNode == null) i += maxIdx
@@ -137,7 +147,7 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
             FibonacciHeap.seq(0)(maxIdx).foreach {
                 i =>
                     if (heaps(i) != null)
-                        topNode = if (topNode == null || order.compare(heaps(i).value, topNode.value) < 0) heaps(i) else topNode 
+                        topNode = if (topNode == null || order.compare(heaps(i).value, topNode.value) < 0) heaps(i) else topNode
             }
             res
         }
@@ -146,11 +156,11 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
     def isEmpty() = topNode == null
 
     def nonEmpty() = topNode != null
-    
+
     /**
      * for debug
      */
-    def show() = FibonacciHeap.seq(0)(31).filter(heaps(_) != null).foreach{
+    def show() = FibonacciHeap.seq(0)(31).filter(heaps(_) != null).foreach {
         i =>
             println(i + ": ")
             heaps(i).show()
@@ -160,28 +170,28 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
 object FibonacciHeap {
     //to get a sequence from i to j quickly
     private val seq = (0 until 32).map { i => (0 until 32).map(j => (i to j)) }
-    
+
     def main(args: Array[String]) {
         val heap = new FibonacciHeap[Int]
         val a = (1 to 2000000).map(_ => (math.random * 1000).toInt % 1000).toArray
-//        val sortedA = a.sorted
-//        a.foreach(i => heap.add(i))
-//        var idx = 0
-//        while (heap.nonEmpty()) {
-//            val i = heap.pop()
-//            assert(sortedA(idx) == i, sortedA(idx) + " " + i)
-//            idx += 1
-//        }
-//        println("SUCC")
+        //        val sortedA = a.sorted
+        //        a.foreach(i => heap.add(i))
+        //        var idx = 0
+        //        while (heap.nonEmpty()) {
+        //            val i = heap.pop()
+        //            assert(sortedA(idx) == i, sortedA(idx) + " " + i)
+        //            idx += 1
+        //        }
+        //        println("SUCC")
 
         var start = System.currentTimeMillis()
-        a.foreach{i => heap.add(i)}
+        a.foreach { i => heap.add(i) }
         println(System.currentTimeMillis() - start)
         while (heap.nonEmpty) {
             heap.pop()
         }
         println(System.currentTimeMillis() - start)
-        
+
         var st = System.currentTimeMillis()
         val Q = new PriorityQueue[Int]()
         a.foreach(i => Q += i)
