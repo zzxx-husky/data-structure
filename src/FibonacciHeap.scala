@@ -1,20 +1,37 @@
 
 import scala.collection.mutable.PriorityQueue
 import scala.io.Source
+import scala.collection.immutable.Range.Inclusive
 
 private class Node[T](v: T) {
     def value = v
-    var index = 0
     var son = null.asInstanceOf[Node[T]]
+    var lastSon = null.asInstanceOf[Node[T]]
     var slibling = null.asInstanceOf[Node[T]]
 
+    /**
+     * For the root node, one is pointing to the first son, the other is to the last son
+     */
     def union(b: Node[T]): Node[T] = {
-        b.slibling = son
-        index += 1
-        son = b
+        if (son == null) {
+            son = b
+        } else {
+            lastSon.slibling = b
+        }
+        b.slibling = null
+        lastSon = b
         this
     }
-}    
+    
+    def show(indent: Int = 2) {
+        for (i <- 0 until indent) print(' ')
+        println(value)
+        if (son != null)
+            son.show(indent + 2)
+        if (slibling != null)
+            slibling.show(indent)
+    }
+}
 
 class FibonacciHeap[T](implicit order: Ordering[T]) {
 
@@ -26,7 +43,7 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
 
     private def addNodeTo(node: Node[T]) = {
         if (node == null) {
-            tmpNode
+            try { tmpNode } finally { tmpNode = null }
         } else {
             val ord = order.compare(node.value, tmpNode.value)
             tmpNode = if (ord < 0) node.union(tmpNode) else tmpNode.union(node)
@@ -46,13 +63,12 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
         tmpNode = new Node(value)
         if (topNode == null || order.compare(topNode.value, value) >= 0) //need equal to 0
             topNode = tmpNode
-        (0 to maxIdx).find{
+        FibonacciHeap.seq(0)(maxIdx).find{
             i => 
-                heaps(i) = addNodeTo(heaps(i))
-                heaps(i) != null
+                heaps.update(i, addNodeTo(heaps(i)))
+                tmpNode == null
         }
         if (heaps(maxIdx) != null) maxIdx += 1
-        tmpNode = null
     }
 
     /**
@@ -63,7 +79,7 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
         if (topNode == null || (b.topNode != null && order.compare(topNode.value, b.topNode.value) > 0))
             topNode = b.topNode
         maxIdx = math.min(maxIdx, b.maxIdx)
-        (0 to maxIdx).foreach {
+        FibonacciHeap.seq(0)(maxIdx).foreach {
             i =>
                 b.heaps(i) =
                     if (heaps(i) != null && b.heaps(i) != null) {
@@ -75,7 +91,7 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
                 tmpNode = b.heaps(i)
                 b.heaps(i) = null
         }
-        (maxIdx + 1 until b.maxIdx).foreach(b.heaps(_) = null)
+        FibonacciHeap.seq(maxIdx + 1)(b.maxIdx - 1).foreach(b.heaps(_) = null)
         b.topNode = null
         b.maxIdx = 0
         if (heaps(maxIdx) != null) maxIdx += 1
@@ -88,22 +104,34 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
         if (topNode == null) throw new Exception("top from empty heap")
         else {
             val res = topNode.value
-            heaps(topNode.index) = null
             var son = topNode.son
-            while (son != null) {
-                tmpNode = son
-                son = son.slibling
-                tmpNode.slibling = null
-                (tmpNode.index to maxIdx).find{
-                    i => 
-                        heaps(i) = addNodeTo(heaps(i))
-                        heaps(i) != null
+            if (son != null) {
+                FibonacciHeap.seq(0)(maxIdx).find {
+                    i =>
+                        if (son != null) {
+                            val nxt = son.slibling
+                            son.slibling = null
+                            if (tmpNode != null) {
+                                addNodeTo(son)                                
+                            } else {
+                                tmpNode = son
+                                heaps.update(i, addNodeTo(heaps(i)))
+                            }
+                            son = nxt
+                            if (son != null) false
+                            else {
+                                heaps.update(i + 1, null)
+                                tmpNode == null
+                            }
+                        } else {
+                            heaps.update(i, addNodeTo(heaps(i)))
+                            tmpNode == null
+                        }
                 }
-            }
-            tmpNode = null
+            } else heaps.update(0, null)
             topNode = null
             if (heaps(maxIdx) != null) maxIdx += 1
-            for (i <- 0 to maxIdx) {
+            for (i <- FibonacciHeap.seq(0)(maxIdx)) {
                 if (heaps(i) != null)
                     topNode = if (topNode == null || order.compare(heaps(i).value, topNode.value) < 0) heaps(i) else topNode 
             }
@@ -114,27 +142,36 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
     def isEmpty() = topNode == null
 
     def nonEmpty() = topNode != null
+    
+    def show() = FibonacciHeap.seq(0)(31).filter(heaps(_) != null).foreach{
+        i =>
+            println(i + ": ")
+            heaps(i).show()
+    }
 }
 
 object FibonacciHeap {
+    private val seq = (0 until 32).map { i => (0 until 32).map(j => (i to j)) }
+    
     def main(args: Array[String]) {
         val heap = new FibonacciHeap[Int]
-        val a = (1 to 2000000).map(_ => (math.random * 1000).toInt % 1000)
-        val sortedA = a.sorted
-        a.foreach(i => heap.add(i))
-        var idx = 0
-        while (heap.nonEmpty()) {
-            val i = heap.pop()
-            assert(sortedA(idx) == i, sortedA(idx) + " " + i)
-            idx += 1
-        }
-        println("SUCC")
+        val a = (1 to 2000000).map(_ => (math.random * 1000).toInt % 1000).toArray
+//        val sortedA = a.sorted
+//        a.foreach(i => heap.add(i))
+//        var idx = 0
+//        while (heap.nonEmpty()) {
+//            val i = heap.pop()
+//            assert(sortedA(idx) == i, sortedA(idx) + " " + i)
+//            idx += 1
+//        }
+//        println("SUCC")
 
         var st = System.currentTimeMillis()
-        a.foreach(i => heap.add(i))
+        a.foreach{i => heap.add(i)}
         println(System.currentTimeMillis() - st)
-        while (heap.nonEmpty)
+        while (heap.nonEmpty) {
             heap.pop()
+        }
         println(System.currentTimeMillis() - st)
         
         st = System.currentTimeMillis()
