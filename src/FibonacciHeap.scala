@@ -46,11 +46,11 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
         tmpNode = new Node(value)
         if (topNode == null || order.compare(topNode.value, value) >= 0) //need equal to 0
             topNode = tmpNode
-        (0 to maxIdx).find{
-            i => 
+            (0 to maxIdx).find{
+                i =>
                 heaps(i) = addNodeTo(heaps(i))
                 heaps(i) != null
-        }
+            }
         if (heaps(maxIdx) != null) maxIdx += 1
         tmpNode = null
     }
@@ -95,9 +95,9 @@ class FibonacciHeap[T](implicit order: Ordering[T]) {
                 son = son.slibling
                 tmpNode.slibling = null
                 (tmpNode.index to maxIdx).find{
-                    i => 
-                        heaps(i) = addNodeTo(heaps(i))
-                        heaps(i) != null
+                    i =>
+                    heaps(i) = addNodeTo(heaps(i))
+                    heaps(i) != null
                 }
             }
             tmpNode = null
