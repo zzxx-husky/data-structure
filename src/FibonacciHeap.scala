@@ -2,8 +2,6 @@
 import scala.collection.mutable.PriorityQueue
 import scala.io.Source
 import scala.collection.immutable.Range.Inclusive
-
-import scala.collection.immutable.Range.Inclusive
 import scala.reflect.ClassTag
 
 private case class Node[T](value: T) {
