@@ -221,17 +221,17 @@ object FibonacciHeap {
         var start = System.currentTimeMillis()
         a.foreach { i => heap.add(i) }
         println(System.currentTimeMillis() - start)
-        while (heap.nonEmpty) {
-            heap.pop()
-        }
-        println(System.currentTimeMillis() - start)
+//        while (heap.nonEmpty) {
+//            heap.pop()
+//        }
+//        println(System.currentTimeMillis() - start)
 
         var st = System.currentTimeMillis()
         val Q = new PriorityQueue[Int]()
         a.foreach(i => Q += i)
         println(System.currentTimeMillis() - st)
-        while (Q.nonEmpty)
-            Q.dequeue()
-        println(System.currentTimeMillis() - st)
+//        while (Q.nonEmpty)
+//            Q.dequeue()
+//        println(System.currentTimeMillis() - st)
     }
 }
