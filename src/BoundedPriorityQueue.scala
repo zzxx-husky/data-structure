@@ -42,22 +42,20 @@ class BoundedPriorityQueue[T: ClassTag](maxSize: Int){
     def toArray() = theQueue.toArray.map(_.asInstanceOf[T])
     
     /**
-     * move elements in this bounded priority queue to another bounded priority queue
-     * note: this priority queue will be empty
+     * move elements in another bounded priority queue to this bounded priority queue
+     * note: another priority queue will be empty
      */
-    def moveTo(b: BoundedPriorityQueue[T]):BoundedPriorityQueue[T] = {
+    def moveIn(b: BoundedPriorityQueue[T]):BoundedPriorityQueue[T] = {
         if (size < b.size) {
-            for (i <- elements)
-                b.add(i.asInstanceOf[T])
-            theQueue.clear()
-        } else {
-            b.moveTo(this)
             val tmp = theQueue
             theQueue = b.theQueue
             b.theQueue = tmp
         }
-        b
+        for (i <- b.elements)
+            add(i.asInstanceOf[T])
+        b.theQueue.clear()
+        this
     }
     
-    def ->(b: BoundedPriorityQueue[T]) = moveTo(b)
+    def <=(b: BoundedPriorityQueue[T]) = moveIn(b)
 }
